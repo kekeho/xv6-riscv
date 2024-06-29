@@ -126,6 +126,14 @@ consoleread(int user_dst, uint64 dst, int n)
   return target - n;
 }
 
+
+void consoleprint(char* str) {
+  while (*str != '\0') {
+    consputc(*str);
+    str++;
+  }
+}
+
 //
 // the console input interrupt handler.
 // uartintr() calls this for input character.
@@ -145,7 +153,6 @@ consoleintr(int c)
     while(cons.e != cons.w &&
           cons.buf[(cons.e-1) % INPUT_BUF_SIZE] != '\n'){
       cons.e--;
-      consputc(BACKSPACE);
     }
     break;
   case C('H'): // Backspace
@@ -161,6 +168,7 @@ consoleintr(int c)
 
       // echo back to the user.
       consputc(c);
+      consoleprint("\e[4m^_^\e[0m");
 
       // store for consumption by consoleread().
       cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
