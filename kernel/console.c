@@ -21,6 +21,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "im.h"
 
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
@@ -51,6 +52,9 @@ struct {
   uint w;  // Write index
   uint e;  // Edit index
 } cons;
+
+
+State im_state;
 
 //
 // user write()s to the console go here.
@@ -167,11 +171,25 @@ consoleintr(int c)
       c = (c == '\r') ? '\n' : c;
 
       // echo back to the user.
-      consputc(c);
-      consoleprint("\e[4m^_^\e[0m");
+      // consputc(c);
 
       // store for consumption by consoleread().
-      cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+      // cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+
+      handleInput(&im_state, c);
+      switch (im_state.type) {
+      case done:
+        consoleprint(im_state.state.doneState.result);
+        int i = 0;
+        while (im_state.state.doneState.result[i] != '\0' && i < IM_MAX_STRING_LENGTH) {
+          cons.buf[cons.e++ % INPUT_BUF_SIZE] = im_state.state.doneState.result[i];
+          i++;
+        }
+        break;
+      default:
+        consputc(c);
+        cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+      }
 
       if(c == '\n' || c == C('D') || cons.e-cons.r == INPUT_BUF_SIZE){
         // wake up consoleread() if a whole line (or end-of-file)
@@ -192,6 +210,7 @@ consoleinit(void)
   initlock(&cons.lock, "cons");
 
   uartinit();
+  initIM();
 
   // connect read and write system calls
   // to consoleread and consolewrite.
