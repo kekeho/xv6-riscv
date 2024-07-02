@@ -55,6 +55,7 @@ struct {
 
 
 State im_state;
+PrevState im_prev_state;
 
 //
 // user write()s to the console go here.
@@ -138,6 +139,27 @@ void consoleprint(char* str) {
   }
 }
 
+void consoleprint_uint64(uint64 n) {
+    if (n == 0) {
+        consputc('0');
+        return;
+    }
+
+    uint64 divisor = 1;
+    // 最上位の桁を見つける
+    while (n / divisor >= 10) {
+        divisor *= 10;
+    }
+
+    // 最上位の桁から順に出力
+    while (divisor > 0) {
+        int digit = (n / divisor) % 10;
+        consputc(digit + '0');
+        divisor /= 10;
+    }
+}
+
+
 //
 // the console input interrupt handler.
 // uartintr() calls this for input character.
@@ -175,20 +197,73 @@ consoleintr(int c)
 
       // store for consumption by consoleread().
       // cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
-
+      setPrevState(&im_state, &im_prev_state);
       handleInput(&im_state, c);
       switch (im_state.type) {
-      case done:
-        consoleprint(im_state.state.doneState.result);
-        int i = 0;
-        while (im_state.state.doneState.result[i] != '\0' && i < IM_MAX_STRING_LENGTH) {
-          cons.buf[cons.e++ % INPUT_BUF_SIZE] = im_state.state.doneState.result[i];
-          i++;
-        }
-        break;
-      default:
-        consputc(c);
-        cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+        int cs_idx, c_idx;
+
+        case state_preedit:
+          // すでに描画されているpreeditを消す    
+          if (im_prev_state.remove_len == 0) {
+            consoleprint(" ");
+          }
+          consoleprint("\e[");
+          consoleprint_uint64(im_prev_state.remove_len);
+          consoleprint("D");
+          consoleprint("\e[0J");
+
+          // preeditを描画
+          consoleprint("\e[4m"); // 下線
+
+          for (int i = 0; i < im_state.state.preeditState.preedit_len; i++) {
+            consoleprint(im_state.state.preeditState.preedit[i].surface);
+          }
+
+          consoleprint("\e[0m"); // 文字修飾をなくす
+          break;
+        case state_select:
+          // すでに描画されているpreedit/selectを消す    
+          if (im_prev_state.type == state_preedit) {
+            // 変わったばかりなので、下段にselect lineはやす
+            consoleprint("\n");
+          }
+
+          consoleprint("\e[0E\e[1K"); // select line消す
+          consoleprint("Select: ");
+
+          cs_idx = im_state.state.selectState.idx;
+          c_idx = im_state.state.selectState.candidates[cs_idx].idx;
+          consoleprint("\e[90m");  // 文字色黒
+          consoleprint("\e[47m"); // 背景色白
+          for (int i = 0; i < im_state.state.selectState.candidates[cs_idx].candidate_len; i++) {
+            consoleprint("\e[47m"); // 背景色白
+            consoleprint("|");
+            if (c_idx == i) {
+              consoleprint("\e[46m"); // 背景色シアン
+            }
+            consoleprint(im_state.state.selectState.candidates[cs_idx].candidate[i].string);
+          }
+          consoleprint("|\e[0m"); // 文字修飾をなくす
+          break;
+        case state_done:
+          // select line消す
+          if (im_prev_state.type == state_select) {
+            consoleprint("\e[0E\e[2K\e[1A");
+            consoleprint("\e[");
+            consoleprint_uint64(im_prev_state.remove_len + 1);
+            consoleprint("C");
+            consoleprint("\e[0J");
+          }
+          consoleprint(im_state.state.doneState.result);
+          for (int i = 0; i < im_state.state.doneState.result_len; i++) {
+            cons.buf[cons.e++ % INPUT_BUF_SIZE] = im_state.state.doneState.result[i];
+          }
+          im_state.type = state_preedit;
+          im_state.state.preeditState.preedit_len = 0;
+          break;
+        default:
+          consputc(c);
+          cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
       }
 
       if(c == '\n' || c == C('D') || cons.e-cons.r == INPUT_BUF_SIZE){
@@ -210,7 +285,7 @@ consoleinit(void)
   initlock(&cons.lock, "cons");
 
   uartinit();
-  initIM();
+  initIM(&im_state, &im_prev_state);
 
   // connect read and write system calls
   // to consoleread and consolewrite.
