@@ -109,7 +109,8 @@ void emoji_ime(Request req, State* state) {
                 } else {
                     state->type = state_done;
                     state->state.doneState.result[0] = req.body.input;
-                    state->state.doneState.result_len = 1;
+                    state->state.doneState.result[1] = '\0';
+                    state->state.doneState.result_len = strlen(state->state.doneState.result);
                 }
                 
             }
@@ -127,6 +128,7 @@ void emoji_ime(Request req, State* state) {
                 cs_idx = state->state.selectState.idx;
                 c_idx = state->state.selectState.candidates[cs_idx].idx;
                 safestrcpy(state->state.doneState.result, state->state.selectState.candidates[cs_idx].candidate[c_idx].string, IM_MAX_STRING_LENGTH);
+                state->state.doneState.result_len = strlen(state->state.selectState.candidates[cs_idx].candidate[c_idx].string);
                 break;
             default:
                 break;
