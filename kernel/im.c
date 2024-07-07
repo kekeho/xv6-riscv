@@ -10,12 +10,17 @@
 #include "riscv.h"
 #include "defs.h"
 #include "im.h"
+#include "emoji_dict.h"
 
 void plain_ime(Request req, State* state);
 void emoji_ime(Request req, State* state);
+int key_match(const char *keyword, const char *value);
 uint64 preedit_surface_len(PreeditState* ps);
 void next_candidate(Candidate* c);
 void before_candidate(Candidate* c);
+uint64 len_to_space(const char *);
+uint64 min(uint64 a, uint64 b);
+
 
 
 // Input Method
@@ -66,7 +71,6 @@ void plain_ime(Request req, State* state) {
     state->state.doneState.result_len = 1;
 }
 
-
 void emoji_ime(Request req, State* state) {
     // PreeditChar preedit[IM_MAX_STRING_LENGTH];
     unsigned int cs_idx, c_idx;
@@ -85,16 +89,31 @@ void emoji_ime(Request req, State* state) {
                     state->state.preeditState.preedit[0].raw[1] = '\0';
                     state->state.preeditState.preedit[0].surface[1] = '\0';
                 } else {
+                    char preedit_surface[IM_MAX_STRING_LENGTH];
+                    int x = 0, n = 0;
+                    for (int i = 1; n < IM_MAX_STRING_LENGTH && i < state->state.preeditState.preedit_len; i++) {
+                        n = strlen(state->state.preeditState.preedit[i].surface);
+                        safestrcpy(preedit_surface+x, state->state.preeditState.preedit[i].surface, IM_MAX_STRING_LENGTH);
+                        x += n;
+                    }
+
                     state->type = state_select;
                     state->state.selectState.candidates_len = 1;
                     state->state.selectState.idx = 0;
-                    state->state.selectState.candidates[0].candidate_len = 5;
+                    state->state.selectState.candidates[0].candidate_len = 0;
                     state->state.selectState.candidates[0].idx = 0;
-                    safestrcpy(state->state.selectState.candidates[0].candidate[0].string, "🍣", IM_MAX_STRING_LENGTH);
-                    safestrcpy(state->state.selectState.candidates[0].candidate[1].string, "🐶", IM_MAX_STRING_LENGTH);
-                    safestrcpy(state->state.selectState.candidates[0].candidate[2].string, "🐱", IM_MAX_STRING_LENGTH);
-                    safestrcpy(state->state.selectState.candidates[0].candidate[3].string, "🌊", IM_MAX_STRING_LENGTH);
-                    safestrcpy(state->state.selectState.candidates[0].candidate[4].string, "💻", IM_MAX_STRING_LENGTH);
+
+                    // TODO: 効率的な実装に変える
+                    int i;
+                    i = 0;
+                    while (i < EMOJI_DICT_SIZE) {
+                        if (key_match(preedit_surface, emoji_dictionary[i][0])) {
+                            safestrcpy(state->state.selectState.candidates[0].candidate[state->state.selectState.candidates[0].candidate_len].string, emoji_dictionary[i][1], IM_MAX_STRING_LENGTH);
+                            state->state.selectState.candidates[0].candidate_len++;
+                        }
+                        i++;
+                    }
+
                     state->state.selectState.candidates[0].preedit_len = 0;
                 }
                 break;
@@ -142,6 +161,16 @@ void emoji_ime(Request req, State* state) {
 }
 
 
+int key_match(const char *keyword, const char *value) {
+    int i = 0;
+    while (keyword[i] != '\0') {
+        if (keyword[i] != value[i]) return 0;
+        i++;
+    }
+    return 1;
+}
+
+
 // Lib
 
 uint64 preedit_surface_len(PreeditState* ps) {
@@ -168,4 +197,17 @@ void before_candidate(Candidate* c) {
     if (0 < c->idx) {
         c->idx--;
     }
+}
+
+uint64 len_to_space(const char* c) {
+    int i = 0;
+    while (c[i] != '\0' || c[i] != ' ') {
+        i++;
+    }
+    return i;
+}
+
+uint64 min(uint64 a, uint64 b) {
+    if (a < b) return a;
+    return b;
 }

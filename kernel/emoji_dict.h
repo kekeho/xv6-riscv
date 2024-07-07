@@ -1,6 +1,6 @@
 #define EMOJI_DICT_SIZE 4703
 
-const char emoji_dictionary[][2][EMOJI_DICT_SIZE] = {
+const char *emoji_dictionary[][2] = {
     {"grinning face", "😀"},
     {"grinning face with big eyes", "😃"},
     {"grinning face with smiling eyes", "😄"},
