@@ -248,9 +248,9 @@ consoleintr(int c)
         case state_done:
           // select line消す
           if (im_prev_state.type == state_select) {
-            consoleprint("\e[0E\e[2K\e[1A");
+            consoleprint("\e[0E\e[2K\e[1A\e[0G");
             consoleprint("\e[");
-            consoleprint_uint64(im_prev_state.remove_len + 1);
+            consoleprint_uint64(cons.e - cons.r + 2);
             consoleprint("C");
             consoleprint("\e[0J");
           }
