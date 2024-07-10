@@ -26,6 +26,9 @@
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
 
+
+void consoleprint(char* str);
+
 //
 // send one character to the uart.
 // called by printf(), and to echo input characters,
@@ -34,12 +37,7 @@
 void
 consputc(int c)
 {
-  if(c == BACKSPACE){
-    // if the user typed backspace, overwrite with a space.
-    uartputc_sync('\b'); uartputc_sync(' '); uartputc_sync('\b');
-  } else {
-    uartputc_sync(c);
-  }
+  uartputc_sync(c);
 }
 
 struct {
@@ -47,7 +45,7 @@ struct {
   
   // input
 #define INPUT_BUF_SIZE 128
-  char buf[INPUT_BUF_SIZE];
+  MultiChar buf[INPUT_BUF_SIZE];
   uint r;  // Read index
   uint w;  // Write index
   uint e;  // Edit index
@@ -101,7 +99,7 @@ consoleread(int user_dst, uint64 dst, int n)
       sleep(&cons.r, &cons.lock);
     }
 
-    c = cons.buf[cons.r++ % INPUT_BUF_SIZE];
+    c = cons.buf[cons.r % INPUT_BUF_SIZE].data[0];
 
     if(c == C('D')){  // end-of-file
       if(n < target){
@@ -113,12 +111,21 @@ consoleread(int user_dst, uint64 dst, int n)
     }
 
     // copy the input byte to the user-space buffer.
-    cbuf = c;
+
     if(either_copyout(user_dst, dst, &cbuf, 1) == -1)
       break;
 
-    dst++;
-    --n;
+    for (int i = 0; i < cons.buf[cons.r % INPUT_BUF_SIZE].len; i++) {
+      cbuf = cons.buf[cons.r % INPUT_BUF_SIZE].data[i];
+      if(either_copyout(user_dst, dst, &cbuf, 1) == -1) {
+        cons.r++;
+        release(&cons.lock);
+        return target - n;
+      }
+
+      dst++;
+      --n;
+    }
 
     if(c == '\n'){
       // a whole line has arrived, return to
@@ -126,6 +133,7 @@ consoleread(int user_dst, uint64 dst, int n)
       break;
     }
   }
+  cons.r++;
   release(&cons.lock);
 
   return target - n;
@@ -135,6 +143,15 @@ consoleread(int user_dst, uint64 dst, int n)
 void consoleprint(char* str) {
   while (*str != '\0') {
     consputc(*str);
+    str++;
+  }
+}
+
+void m_consoleprint(MultiChar *str) {
+  while (str->data[0] != '\0') {
+    for (int i = 0; i < str->len; i++) {
+      consputc(str->data[i]);
+    }
     str++;
   }
 }
@@ -177,7 +194,7 @@ consoleintr(int c)
     break;
   case C('U'):  // Kill line.
     while(cons.e != cons.w &&
-          cons.buf[(cons.e-1) % INPUT_BUF_SIZE] != '\n'){
+          cons.buf[(cons.e-1) % INPUT_BUF_SIZE].data[0] != '\n'){
       cons.e--;
     }
     break;
@@ -185,7 +202,15 @@ consoleintr(int c)
   case '\x7f': // Delete key
     if(cons.e != cons.w){
       cons.e--;
-      consputc(BACKSPACE);
+      if (cons.buf[cons.e % INPUT_BUF_SIZE].len > 1) {
+        // マルチバイト文字っぽい
+        // TODO: ホントは文字幅を計算して消したほうが良い
+        uartputc_sync('\b');
+      }
+      uartputc_sync('\b');
+      uartputc_sync(' ');
+      uartputc_sync('\b');
+      
     }
     break;
   default:
@@ -254,16 +279,13 @@ consoleintr(int c)
             consoleprint("C");
             consoleprint("\e[0J");
           }
-          consoleprint(im_state.state.doneState.result);
+          m_consoleprint(im_state.state.doneState.result);
           for (int i = 0; i < im_state.state.doneState.result_len; i++) {
             cons.buf[cons.e++ % INPUT_BUF_SIZE] = im_state.state.doneState.result[i];
           }
           im_state.type = state_preedit;
           im_state.state.preeditState.preedit_len = 0;
           break;
-        default:
-          consputc(c);
-          cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
       }
 
       if(c == '\n' || c == C('D') || cons.e-cons.r == INPUT_BUF_SIZE){

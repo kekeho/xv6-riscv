@@ -30,8 +30,8 @@ void (*current_im)(Request, State*);
 void initIM(State* state, PrevState* prev_state) {
     // Input Methodの初期化
     // IMEのスポーン
-    // current_im = plain_ime;
-    current_im = emoji_ime;
+    current_im = plain_ime;
+    // current_im = emoji_ime;
     state->type = state_preedit;
     state->state.preeditState.preedit_len = 0;
     prev_state->type = state_done;
@@ -65,100 +65,115 @@ void setPrevState(State* state, PrevState* prev_state) {
 
 // IME
 
+// void plain_ime(Request req, State* state) {
+//     state->type = state_done;
+//     state->state.doneState.result->len = 1;
+//     state->state.doneState.result->data[0] = req.body.input;
+//     state->state.doneState.result_len = 1;
+// }
+
 void plain_ime(Request req, State* state) {
+    if (req.body.input == '\n') {
+        state->type = state_done;
+        state->state.doneState.result->len = 1;
+        state->state.doneState.result->data[0] = req.body.input;
+        state->state.doneState.result_len = 1;
+        return;
+    }
     state->type = state_done;
-    state->state.doneState.result[0] = req.body.input;
+    state->state.doneState.result->len = sizeof("あ");
+    safestrcpy(state->state.doneState.result->data, "あ", sizeof("あ"));
     state->state.doneState.result_len = 1;
 }
 
-void emoji_ime(Request req, State* state) {
-    // PreeditChar preedit[IM_MAX_STRING_LENGTH];
-    unsigned int cs_idx, c_idx;
+// void emoji_ime(Request req, State* state) {
+//     // PreeditChar preedit[IM_MAX_STRING_LENGTH];
+//     unsigned int cs_idx, c_idx;
 
-    switch (req.type) {
-    case req_input:
-        switch (state->type) {
-        case state_preedit:
-            switch (req.body.input) {
-            case ':':
-                if (state->state.preeditState.preedit_len < 1) {
-                    state->type = state_preedit;
-                    state->state.preeditState.preedit_len = 1;
-                    state->state.preeditState.preedit[0].raw[0] = ':';
-                    state->state.preeditState.preedit[0].surface[0] = ':';
-                    state->state.preeditState.preedit[0].raw[1] = '\0';
-                    state->state.preeditState.preedit[0].surface[1] = '\0';
-                } else {
-                    char preedit_surface[IM_MAX_STRING_LENGTH];
-                    int x = 0, n = 0;
-                    for (int i = 1; n < IM_MAX_STRING_LENGTH && i < state->state.preeditState.preedit_len; i++) {
-                        n = strlen(state->state.preeditState.preedit[i].surface);
-                        safestrcpy(preedit_surface+x, state->state.preeditState.preedit[i].surface, IM_MAX_STRING_LENGTH);
-                        x += n;
-                    }
+//     switch (req.type) {
+//     case req_input:
+//         switch (state->type) {
+//         case state_preedit:
+//             switch (req.body.input) {
+//             case ':':
+//                 if (state->state.preeditState.preedit_len < 1) {
+//                     state->type = state_preedit;
+//                     state->state.preeditState.preedit_len = 1;
+//                     state->state.preeditState.preedit[0].raw[0] = ':';
+//                     state->state.preeditState.preedit[0].surface[0] = ':';
+//                     state->state.preeditState.preedit[0].raw[1] = '\0';
+//                     state->state.preeditState.preedit[0].surface[1] = '\0';
+//                 } else {
+//                     char preedit_surface[IM_MAX_STRING_LENGTH];
+//                     int x = 0, n = 0;
+//                     for (int i = 1; n < IM_MAX_STRING_LENGTH && i < state->state.preeditState.preedit_len; i++) {
+//                         n = strlen(state->state.preeditState.preedit[i].surface);
+//                         safestrcpy(preedit_surface+x, state->state.preeditState.preedit[i].surface, IM_MAX_STRING_LENGTH);
+//                         x += n;
+//                     }
 
-                    state->type = state_select;
-                    state->state.selectState.candidates_len = 1;
-                    state->state.selectState.idx = 0;
-                    state->state.selectState.candidates[0].candidate_len = 0;
-                    state->state.selectState.candidates[0].idx = 0;
+//                     state->type = state_select;
+//                     state->state.selectState.candidates_len = 1;
+//                     state->state.selectState.idx = 0;
+//                     state->state.selectState.candidates[0].candidate_len = 0;
+//                     state->state.selectState.candidates[0].idx = 0;
 
-                    // TODO: 効率的な実装に変える
-                    int i;
-                    i = 0;
-                    while (i < EMOJI_DICT_SIZE) {
-                        if (key_match(preedit_surface, emoji_dictionary[i][0])) {
-                            safestrcpy(state->state.selectState.candidates[0].candidate[state->state.selectState.candidates[0].candidate_len].string, emoji_dictionary[i][1], IM_MAX_STRING_LENGTH);
-                            state->state.selectState.candidates[0].candidate_len++;
-                        }
-                        i++;
-                    }
+//                     // TODO: 効率的な実装に変える
+//                     int i;
+//                     i = 0;
+//                     while (i < EMOJI_DICT_SIZE) {
+//                         if (key_match(preedit_surface, emoji_dictionary[i][0])) {
+//                             safestrcpy(state->state.selectState.candidates[0].candidate[state->state.selectState.candidates[0].candidate_len].string, emoji_dictionary[i][1], IM_MAX_STRING_LENGTH);
+//                             state->state.selectState.candidates[0].candidate_len++;
+//                         }
+//                         i++;
+//                     }
 
-                    state->state.selectState.candidates[0].preedit_len = 0;
-                }
-                break;
-            default:
-                if (state->state.preeditState.preedit_len >= 1) {
-                    int next = state->state.preeditState.preedit_len;
-                    state->state.preeditState.preedit[next].raw[0] = req.body.input;
-                    state->state.preeditState.preedit[next].raw[1] = '\0';
-                    state->state.preeditState.preedit[next].surface[0] = req.body.input;
-                    state->state.preeditState.preedit[next].surface[1] = '\0';
-                    state->state.preeditState.preedit_len++;
-                } else {
-                    state->type = state_done;
-                    state->state.doneState.result[0] = req.body.input;
-                    state->state.doneState.result[1] = '\0';
-                    state->state.doneState.result_len = strlen(state->state.doneState.result);
-                }
+//                     state->state.selectState.candidates[0].preedit_len = 0;
+//                 }
+//                 break;
+//             default:
+//                 if (state->state.preeditState.preedit_len >= 1) {
+//                     int next = state->state.preeditState.preedit_len;
+//                     state->state.preeditState.preedit[next].raw[0] = req.body.input;
+//                     state->state.preeditState.preedit[next].raw[1] = '\0';
+//                     state->state.preeditState.preedit[next].surface[0] = req.body.input;
+//                     state->state.preeditState.preedit[next].surface[1] = '\0';
+//                     state->state.preeditState.preedit_len++;
+//                 } else {
+//                     state->type = state_done;
+//                     state->state.doneState.result[0] = req.body.input;
+//                     state->state.doneState.result[1] = '\0';
+//                     state->state.doneState.result_len = strlen(state->state.doneState.result);
+//                 }
                 
-            }
-            break;
-        case state_select:
-            switch (req.body.input) {
-            case UP_KEY:
-                before_candidate(&state->state.selectState.candidates[state->state.selectState.idx]);
-                break;
-            case DOWN_KEY:
-                next_candidate(&state->state.selectState.candidates[state->state.selectState.idx]);
-                break;
-            case ENTER_KEY:
-                state->type = state_done;
-                cs_idx = state->state.selectState.idx;
-                c_idx = state->state.selectState.candidates[cs_idx].idx;
-                safestrcpy(state->state.doneState.result, state->state.selectState.candidates[cs_idx].candidate[c_idx].string, IM_MAX_STRING_LENGTH);
-                state->state.doneState.result_len = strlen(state->state.selectState.candidates[cs_idx].candidate[c_idx].string);
-                break;
-            default:
-                break;
-            }
-            break;
-        case state_done:
-            break;
-        }
+//             }
+//             break;
+//         case state_select:
+//             switch (req.body.input) {
+//             case UP_KEY:
+//                 before_candidate(&state->state.selectState.candidates[state->state.selectState.idx]);
+//                 break;
+//             case DOWN_KEY:
+//                 next_candidate(&state->state.selectState.candidates[state->state.selectState.idx]);
+//                 break;
+//             case ENTER_KEY:
+//                 state->type = state_done;
+//                 cs_idx = state->state.selectState.idx;
+//                 c_idx = state->state.selectState.candidates[cs_idx].idx;
+//                 safestrcpy(state->state.doneState.result, state->state.selectState.candidates[cs_idx].candidate[c_idx].string, IM_MAX_STRING_LENGTH);
+//                 state->state.doneState.result_len = strlen(state->state.selectState.candidates[cs_idx].candidate[c_idx].string);
+//                 break;
+//             default:
+//                 break;
+//             }
+//             break;
+//         case state_done:
+//             break;
+//         }
             
-    }
-}
+//     }
+// }
 
 
 int key_match(const char *keyword, const char *value) {

@@ -6,6 +6,7 @@ OBJS = \
   $K/start.o \
   $K/console.o \
   $K/im.o \
+  $K/multibyte_char.o \
   $K/printf.o \
   $K/uart.o \
   $K/kalloc.o \
@@ -160,7 +161,7 @@ ifndef CPUS
 CPUS := 3
 endif
 
-QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 256M -smp $(CPUS) -nographic
+QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 512M -smp $(CPUS) -nographic
 QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0

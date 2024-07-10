@@ -1,6 +1,7 @@
 // Input Method
 
 #include "types.h"
+#include "multibyte_char.h"
 
 #define IM_MAX_STRING_LENGTH 256  // TODO: 可変長にしたい
 
@@ -39,7 +40,7 @@ struct select_state_t {
 
 
 struct done_state_t {
-    char result[IM_MAX_STRING_LENGTH];  // 結果
+    MultiChar result[IM_MAX_STRING_LENGTH];  // 結果
     unsigned int result_len;
 } typedef DoneState;
 
