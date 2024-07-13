@@ -84,7 +84,6 @@ consoleread(int user_dst, uint64 dst, int n)
 {
   uint target;
   int c;
-  char cbuf;
 
   target = n;
   acquire(&cons.lock);
@@ -112,20 +111,12 @@ consoleread(int user_dst, uint64 dst, int n)
 
     // copy the input byte to the user-space buffer.
 
-    if(either_copyout(user_dst, dst, &cbuf, 1) == -1)
+    if(either_copyout(user_dst, dst, &cons.buf[cons.r % INPUT_BUF_SIZE].data, cons.buf[cons.r % INPUT_BUF_SIZE].len) == -1)
       break;
 
-    for (int i = 0; i < cons.buf[cons.r % INPUT_BUF_SIZE].len; i++) {
-      cbuf = cons.buf[cons.r % INPUT_BUF_SIZE].data[i];
-      if(either_copyout(user_dst, dst, &cbuf, 1) == -1) {
-        cons.r++;
-        release(&cons.lock);
-        return target - n;
-      }
-
-      dst++;
-      --n;
-    }
+    dst += cons.buf[cons.r % INPUT_BUF_SIZE].len;
+    n -= cons.buf[cons.r % INPUT_BUF_SIZE].len;
+    cons.r++;
 
     if(c == '\n'){
       // a whole line has arrived, return to
@@ -133,7 +124,7 @@ consoleread(int user_dst, uint64 dst, int n)
       break;
     }
   }
-  cons.r++;
+
   release(&cons.lock);
 
   return target - n;

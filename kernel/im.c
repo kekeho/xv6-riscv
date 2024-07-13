@@ -73,17 +73,21 @@ void setPrevState(State* state, PrevState* prev_state) {
 // }
 
 void plain_ime(Request req, State* state) {
-    if (req.body.input == '\n') {
+    if (req.body.input == 'x') {
         state->type = state_done;
-        state->state.doneState.result->len = 1;
-        state->state.doneState.result->data[0] = req.body.input;
+        state->state.doneState.result->len = strlen("あ");
+        safestrcpy(state->state.doneState.result->data, "あ", strlen("あ")+1);
         state->state.doneState.result_len = 1;
         return;
     }
+
+
     state->type = state_done;
-    state->state.doneState.result->len = sizeof("あ");
-    safestrcpy(state->state.doneState.result->data, "あ", sizeof("あ"));
+    state->state.doneState.result->len = 1;
+    state->state.doneState.result->data[0] = req.body.input;
     state->state.doneState.result_len = 1;
+    return;
+    
 }
 
 // void emoji_ime(Request req, State* state) {
